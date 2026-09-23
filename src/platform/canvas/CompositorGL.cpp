@@ -3976,7 +3976,11 @@ public:
     // pop state stack and restore state
     virtual void restore() override
     {
+        BlendMode previousBlendMode = m_state.back().blendMode;
         m_state.pop_back();
+        if (previousBlendMode != m_state.back().blendMode) {
+            updateBlendMode();
+        }
     }
 
     // Lazily toggles GL_BLEND, skipping the call when already in the
@@ -4012,6 +4016,7 @@ public:
 
         GLenum srcFactor = GL_ONE, dstFactor = GL_ONE_MINUS_SRC_ALPHA;
         GLenum equation = GL_FUNC_ADD;
+        bool useDifferenceFactors = false;
 
         switch (blendMode) {
         case BlendMode::Normal:
@@ -4032,9 +4037,9 @@ public:
             equation = GL_MAX;
             break;
         case BlendMode::Difference:
-            srcFactor = GL_ONE;
-            dstFactor = GL_ONE;
-            equation = GL_FUNC_SUBTRACT;
+            srcFactor = GL_ONE_MINUS_DST_COLOR;
+            dstFactor = GL_ONE_MINUS_SRC_COLOR;
+            useDifferenceFactors = true;
             break;
         case BlendMode::Screen:
             srcFactor = GL_ONE;
@@ -4054,7 +4059,16 @@ public:
             STARFISH_UNSUPPORTED("Unsupported BlendMode %d", (int)blendMode);
         }
 
-        gl()->blendFunc(srcFactor, dstFactor);
+        if (useDifferenceFactors) {
+            // Fixed-function GL cannot express abs(backdrop - source). This
+            // matches difference at channel extrema and, unlike subtraction,
+            // keeps a fully transparent masked source from changing the
+            // backdrop. Other channel values need backdrop sampling.
+            gl()->blendFuncSeparate(srcFactor, dstFactor, GL_ONE,
+                                    GL_ONE_MINUS_SRC_ALPHA);
+        } else {
+            gl()->blendFunc(srcFactor, dstFactor);
+        }
         gl()->blendEquation(equation);
     }
 
