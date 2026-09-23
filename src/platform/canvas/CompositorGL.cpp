@@ -3978,7 +3978,7 @@ public:
     {
         BlendMode previousBlendMode = m_state.back().blendMode;
         m_state.pop_back();
-        if (previousBlendMode != m_state.back().blendMode) {
+        if (!m_state.empty() && previousBlendMode != m_state.back().blendMode) {
             updateBlendMode();
         }
     }
@@ -5469,6 +5469,18 @@ public:
                 }
                 GLuint texture =
                     m_currentMaskSurface->m_textureFragments[0].textureID;
+                gl()->bindTexture(GL_TEXTURE_2D, texture);
+                bool oneToOne =
+                    lastState.matrixStaysInRect &&
+                    std::abs(m_maskWidth -
+                             m_currentMaskSurface->bufferWidth()) < 0.01f &&
+                    std::abs(m_maskHeight -
+                             m_currentMaskSurface->bufferHeight()) < 0.01f;
+                GLenum filter = oneToOne ? GL_NEAREST : GL_LINEAR;
+                gl()->texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                                    filter);
+                gl()->texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                                    filter);
                 float top = (localDst.y() + m_maskOffsetY) / m_maskHeight;
                 float height = localDst.height() / m_maskHeight;
                 // Cairo uploads the CSS mask with its top row at texture
